@@ -27,6 +27,7 @@ public:
     
     // Accessors
     const vk::raii::SwapchainKHR&              get()           const { return m_swapchain; }
+    const vk::raii::RenderPass&                getRenderPass() const { return m_renderPass; }
     const std::vector<vk::raii::ImageView>&    getImageViews() const { return m_imageViews; }
     vk::Format                                 getFormat()     const { return m_format; }
     vk::Extent2D                               getExtent()     const { return m_extent; }
@@ -45,6 +46,7 @@ public:
 
 private:
     vk::raii::SwapchainKHR           m_swapchain = nullptr;
+    vk::raii::RenderPass             m_renderPass = nullptr;
     std::vector<vk::Image>           m_images;       // Raw handles — owned by the swapchain
     std::vector<vk::raii::ImageView> m_imageViews;
     vk::Format                       m_format;

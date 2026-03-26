@@ -16,6 +16,9 @@ cmake_install.cmake
 *.dll
 *.exe
 
+# Compiled shaders
+*.spv
+
 # IDE
 .vscode/
 .idea/
