@@ -3,6 +3,8 @@
 #include "platform/Window.hpp"
 #include <fstream>
 #include <cstddef>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
     const auto& dev = device.getLogical();
@@ -34,7 +36,7 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
     vk::VertexInputBindingDescription bindingDesc(0, sizeof(Vertex), vk::VertexInputRate::eVertex);
 
     std::array vertexAttribs = {
-        vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
+        vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)),
         vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
     };
 
@@ -46,7 +48,7 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
 
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly(
         {},
-        vk::PrimitiveTopology::eTriangleStrip,
+        vk::PrimitiveTopology::eTriangleList,
         false
     );
 
@@ -72,8 +74,8 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
         false,
         false,
         vk::PolygonMode::eFill,
-        vk::CullModeFlagBits::eNone,
-        vk::FrontFace::eClockwise,
+        vk::CullModeFlagBits::eBack,
+        vk::FrontFace::eCounterClockwise,
         false,
         0.0f,
         0.0f,
@@ -89,6 +91,19 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
         nullptr,
         false,
         false
+    );
+
+    vk::PipelineDepthStencilStateCreateInfo depthStencil(
+        {},
+        true,
+        true,
+        vk::CompareOp::eLess,
+        false,
+        false,
+        {},
+        {},
+        0.0f,
+        1.0f
     );
 
     vk::PipelineColorBlendAttachmentState colorBlendAttachment(
@@ -111,7 +126,19 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
         {0.0f, 0.0f, 0.0f, 0.0f}
     );
 
-    m_pipelineLayout = vk::raii::PipelineLayout(dev, vk::PipelineLayoutCreateInfo({}, 0, nullptr));
+    vk::PushConstantRange pushConstantRange(
+        vk::ShaderStageFlagBits::eVertex,
+        0,
+        sizeof(glm::mat4) * 2 // view + proj matrices
+    );
+
+    vk::PipelineLayoutCreateInfo layoutInfo(
+        {},
+        0, nullptr,
+        1, &pushConstantRange
+    );
+
+    m_pipelineLayout = vk::raii::PipelineLayout(dev, layoutInfo);
 
     vk::GraphicsPipelineCreateInfo pipelineInfo(
         {},
@@ -122,7 +149,7 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
         &viewportState,
         &rasterizer,
         &multisampling,
-        nullptr,
+        &depthStencil,
         &colorBlending,
         nullptr,
         *m_pipelineLayout,

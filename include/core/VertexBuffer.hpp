@@ -5,7 +5,7 @@
 #include <array>
 
 struct Vertex {
-    std::array<float, 2> pos;
+    std::array<float, 3> pos;
     std::array<float, 3> color;
 };
 

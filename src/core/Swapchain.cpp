@@ -56,7 +56,7 @@ Swapchain::Swapchain(const Device&               device,
 
     m_swapchain = vk::raii::SwapchainKHR(device.getLogical(), createInfo);
 
-    // Create render pass
+    // Create render pass with depth buffer
     vk::AttachmentDescription colorAttachment(
         {},
         m_format,
@@ -69,29 +69,86 @@ Swapchain::Swapchain(const Device&               device,
         vk::ImageLayout::ePresentSrcKHR
     );
 
+    vk::ImageCreateInfo depthImageInfo(
+        {},
+        vk::ImageType::e2D,
+        vk::Format::eD32Sfloat,
+        vk::Extent3D(extent.width, extent.height, 1),
+        1, 1,
+        vk::SampleCountFlagBits::e1,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        vk::SharingMode::eExclusive,
+        {},
+        vk::ImageLayout::eUndefined
+    );
+    m_depthImage = vk::raii::Image(device.getLogical(), depthImageInfo);
+
+    auto memRequirements = m_depthImage.getMemoryRequirements();
+    auto memProps = device.getPhysical().getMemoryProperties();
+    uint32_t memoryTypeIndex = 0;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
+        if (memRequirements.memoryTypeBits & (1 << i)) {
+            if (memProps.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
+                memoryTypeIndex = i;
+                break;
+            }
+        }
+    }
+    vk::MemoryAllocateInfo depthAllocInfo(memRequirements.size, memoryTypeIndex);
+    m_depthMemory = vk::raii::DeviceMemory(device.getLogical(), depthAllocInfo);
+    m_depthImage.bindMemory(*m_depthMemory, 0);
+
+    vk::ImageSubresourceRange depthSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1);
+    vk::ImageViewCreateInfo depthViewInfo(
+        {},
+        *m_depthImage,
+        vk::ImageViewType::e2D,
+        vk::Format::eD32Sfloat,
+        {},
+        depthSubresourceRange
+    );
+    m_depthImageView = vk::raii::ImageView(device.getLogical(), depthViewInfo);
+
+    vk::AttachmentDescription depthAttachment(
+        {},
+        vk::Format::eD32Sfloat,
+        vk::SampleCountFlagBits::e1,
+        vk::AttachmentLoadOp::eClear,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eDepthStencilAttachmentOptimal
+    );
+
     vk::AttachmentReference colorAttachmentRef(0, vk::ImageLayout::eColorAttachmentOptimal);
+    vk::AttachmentReference depthAttachmentRef(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
     vk::SubpassDescription subpass(
         {},
         vk::PipelineBindPoint::eGraphics,
         0, nullptr,
         1, &colorAttachmentRef,
-        0, nullptr
+        nullptr,
+        &depthAttachmentRef
     );
 
     vk::SubpassDependency dependency(
         VK_SUBPASS_EXTERNAL,
         0,
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+        vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eLateFragmentTests,
         {},
-        vk::AccessFlagBits::eColorAttachmentWrite,
+        vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead,
         {}
     );
 
+    std::array attachments = {colorAttachment, depthAttachment};
     vk::RenderPassCreateInfo renderPassInfo(
         {},
-        1, &colorAttachment,
+        static_cast<uint32_t>(attachments.size()),
+        attachments.data(),
         1, &subpass,
         1, &dependency
     );

@@ -9,6 +9,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 class Window;
+class Camera;
 
 class Renderer {
 public:
@@ -22,11 +23,11 @@ public:
     const Device&    getDevice()    const { return m_device; }
     const Swapchain& getSwapchain() const { return m_swapchain; }
 
-    void drawFrame();
+    void drawFrame(const Camera& camera);
 
 private:
     void recreateSwapchain();
-    void recordCommandBuffer(vk::CommandBuffer& buffer, uint32_t imageIndex);
+    void recordCommandBuffer(vk::CommandBuffer& buffer, uint32_t imageIndex, const Camera& camera);
 
     // Declaration order = destruction order (reversed by RAII)
     // Surface must outlive Device; Swapchain must be destroyed before Device

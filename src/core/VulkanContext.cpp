@@ -31,7 +31,7 @@ vk::InstanceCreateInfo VulkanContext::createInstanceInfo(const std::vector<const
 
     // Constructor: vk::ApplicationInfo(appName, appVer, engineName, engineVer, apiVer)
     static vk::ApplicationInfo appInfo(
-        "Vulkan RAII PBR", 1,
+        "Vulkan Cube", 1,
         "No Engine", 1,
         VK_API_VERSION_1_3
     );

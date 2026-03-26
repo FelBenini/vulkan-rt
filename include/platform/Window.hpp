@@ -29,8 +29,22 @@ public:
     bool wasResized() const    { return m_framebufferResized; }
     void clearResizeFlag()     { m_framebufferResized = false; }
 
+    // Mouse input
+    bool isMouseGrabbed() const { return m_mouseGrabbed; }
+    void grabMouse();
+    void ungrabMouse();
+    void getMouseDelta(int& dx, int& dy);
+    int getScrollDelta();
+    void clearScrollDelta();
+    bool isKeyPressed(int keycode) const;
+
 private:
     SDL_Window* m_window              = nullptr;
     bool        m_shouldClose         = false;
     bool        m_framebufferResized  = false;
+    bool        m_mouseGrabbed        = false;
+    int         m_mouseDx             = 0;
+    int         m_mouseDy             = 0;
+    int         m_scrollDelta         = 0;
+    std::vector<int> m_pressedKeys;
 };
