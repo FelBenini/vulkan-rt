@@ -39,12 +39,29 @@ else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# --- Shader copy ---
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
+# --- Shader Compilation ---
+find_program(GLSLANG_VALIDATOR glslangValidator REQUIRED)
+
+set(SHADER_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/triangle.vert"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/triangle.frag"
 )
+
+set(SPV_FILES "")
+foreach(SHADER ${SHADER_FILES})
+    get_filename_component(FILE_NAME ${SHADER} NAME)
+    set(SPV_FILE "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${FILE_NAME}.spv")
+    list(APPEND SPV_FILES ${SPV_FILE})
+    add_custom_command(
+        OUTPUT ${SPV_FILE}
+        COMMAND ${GLSLANG_VALIDATOR} -V ${SHADER} -o ${SPV_FILE}
+        DEPENDS ${SHADER}
+        COMMENT "Compiling shader ${FILE_NAME}"
+    )
+endforeach()
+
+add_custom_target(shaders ALL DEPENDS ${SPV_FILES})
+add_dependencies(${PROJECT_NAME} shaders)
 
 # --- Output ---
 set_target_properties(${PROJECT_NAME} PROPERTIES
