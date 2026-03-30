@@ -15,14 +15,13 @@ public:
 
     const vk::raii::Pipeline&      getPipeline()      const { return m_pipeline; }
     const vk::raii::PipelineLayout& getLayout()       const { return m_pipelineLayout; }
-    const vk::raii::RenderPass&    getRenderPass()   const { return m_renderPass; }
+    const vk::raii::RenderPass&    getRenderPass()   const { return *m_swapchainRenderPass; }
 
 private:
-    vk::raii::Pipeline       m_pipeline = nullptr;
-    vk::raii::PipelineLayout m_pipelineLayout = nullptr;
-    vk::raii::RenderPass     m_renderPass = nullptr;
+    vk::raii::Pipeline        m_pipeline = nullptr;
+    vk::raii::PipelineLayout  m_pipelineLayout = nullptr;
+    const vk::raii::RenderPass* m_swapchainRenderPass = nullptr;
 
     static std::vector<char> readShader(const std::string& path);
     vk::raii::ShaderModule   createShaderModule(const vk::raii::Device& device, const std::vector<char>& code);
-    static vk::raii::RenderPass createRenderPass(const vk::raii::Device& device, vk::Format swapchainFormat);
 };

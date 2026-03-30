@@ -8,7 +8,9 @@
 
 Swapchain::Swapchain(const Device&               device,
                      const vk::raii::SurfaceKHR& surface,
-                     const Window&               window)
+                     const Window&               window,
+                     vk::SampleCountFlagBits     msaaSamples)
+    : m_msaaSamples(msaaSamples)
 {
     auto support = querySupport(device.getPhysical(), surface);
 
@@ -56,26 +58,55 @@ Swapchain::Swapchain(const Device&               device,
 
     m_swapchain = vk::raii::SwapchainKHR(device.getLogical(), createInfo);
 
-    // Create render pass with depth buffer
-    vk::AttachmentDescription colorAttachment(
+    // Create multisample color image (resolve target)
+    vk::ImageCreateInfo colorImageInfo(
         {},
+        vk::ImageType::e2D,
         m_format,
-        vk::SampleCountFlagBits::e1,
-        vk::AttachmentLoadOp::eClear,
-        vk::AttachmentStoreOp::eStore,
-        vk::AttachmentLoadOp::eDontCare,
-        vk::AttachmentStoreOp::eDontCare,
-        vk::ImageLayout::eUndefined,
-        vk::ImageLayout::ePresentSrcKHR
+        vk::Extent3D(extent.width, extent.height, 1),
+        1, 1,
+        m_msaaSamples,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
+        vk::SharingMode::eExclusive,
+        {},
+        vk::ImageLayout::eUndefined
     );
+    m_colorImage = vk::raii::Image(device.getLogical(), colorImageInfo);
 
+    auto colorMemReqs = m_colorImage.getMemoryRequirements();
+    auto memProps = device.getPhysical().getMemoryProperties();
+    uint32_t memoryTypeIndex = 0;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
+        if (colorMemReqs.memoryTypeBits & (1 << i)) {
+            if (memProps.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
+                memoryTypeIndex = i;
+                break;
+            }
+        }
+    }
+    vk::MemoryAllocateInfo colorAllocInfo(colorMemReqs.size, memoryTypeIndex);
+    m_colorMemory = vk::raii::DeviceMemory(device.getLogical(), colorAllocInfo);
+    m_colorImage.bindMemory(*m_colorMemory, 0);
+
+    vk::ImageViewCreateInfo colorViewInfo(
+        {},
+        *m_colorImage,
+        vk::ImageViewType::e2D,
+        m_format,
+        {},
+        vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
+    );
+    m_colorImageView = vk::raii::ImageView(device.getLogical(), colorViewInfo);
+
+    // Create multisample depth image
     vk::ImageCreateInfo depthImageInfo(
         {},
         vk::ImageType::e2D,
         vk::Format::eD32Sfloat,
         vk::Extent3D(extent.width, extent.height, 1),
         1, 1,
-        vk::SampleCountFlagBits::e1,
+        m_msaaSamples,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eDepthStencilAttachment,
         vk::SharingMode::eExclusive,
@@ -84,18 +115,8 @@ Swapchain::Swapchain(const Device&               device,
     );
     m_depthImage = vk::raii::Image(device.getLogical(), depthImageInfo);
 
-    auto memRequirements = m_depthImage.getMemoryRequirements();
-    auto memProps = device.getPhysical().getMemoryProperties();
-    uint32_t memoryTypeIndex = 0;
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
-        if (memRequirements.memoryTypeBits & (1 << i)) {
-            if (memProps.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
-                memoryTypeIndex = i;
-                break;
-            }
-        }
-    }
-    vk::MemoryAllocateInfo depthAllocInfo(memRequirements.size, memoryTypeIndex);
+    auto depthMemReqs = m_depthImage.getMemoryRequirements();
+    vk::MemoryAllocateInfo depthAllocInfo(depthMemReqs.size, memoryTypeIndex);
     m_depthMemory = vk::raii::DeviceMemory(device.getLogical(), depthAllocInfo);
     m_depthImage.bindMemory(*m_depthMemory, 0);
 
@@ -110,10 +131,23 @@ Swapchain::Swapchain(const Device&               device,
     );
     m_depthImageView = vk::raii::ImageView(device.getLogical(), depthViewInfo);
 
+    // Create render pass with MSAA: multisampled color/depth + single-sampled resolve
+    vk::AttachmentDescription colorAttachment(
+        {},
+        m_format,
+        m_msaaSamples,
+        vk::AttachmentLoadOp::eClear,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal
+    );
+
     vk::AttachmentDescription depthAttachment(
         {},
         vk::Format::eD32Sfloat,
-        vk::SampleCountFlagBits::e1,
+        m_msaaSamples,
         vk::AttachmentLoadOp::eClear,
         vk::AttachmentStoreOp::eDontCare,
         vk::AttachmentLoadOp::eDontCare,
@@ -122,16 +156,30 @@ Swapchain::Swapchain(const Device&               device,
         vk::ImageLayout::eDepthStencilAttachmentOptimal
     );
 
+    vk::AttachmentDescription resolveAttachment(
+        {},
+        m_format,
+        vk::SampleCountFlagBits::e1,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eStore,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::ePresentSrcKHR
+    );
+
     vk::AttachmentReference colorAttachmentRef(0, vk::ImageLayout::eColorAttachmentOptimal);
     vk::AttachmentReference depthAttachmentRef(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    vk::AttachmentReference resolveAttachmentRef(2, vk::ImageLayout::eColorAttachmentOptimal);
 
     vk::SubpassDescription subpass(
         {},
         vk::PipelineBindPoint::eGraphics,
         0, nullptr,
         1, &colorAttachmentRef,
-        nullptr,
-        &depthAttachmentRef
+        &resolveAttachmentRef,
+        &depthAttachmentRef,
+        0, nullptr
     );
 
     vk::SubpassDependency dependency(
@@ -144,7 +192,7 @@ Swapchain::Swapchain(const Device&               device,
         {}
     );
 
-    std::array attachments = {colorAttachment, depthAttachment};
+    std::array attachments = {colorAttachment, depthAttachment, resolveAttachment};
     vk::RenderPassCreateInfo renderPassInfo(
         {},
         static_cast<uint32_t>(attachments.size()),

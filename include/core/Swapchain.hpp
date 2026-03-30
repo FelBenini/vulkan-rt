@@ -15,7 +15,8 @@ class Swapchain {
 public:
     Swapchain(const Device&              device,
               const vk::raii::SurfaceKHR& surface,
-              const Window&              window);
+              const Window&              window,
+              vk::SampleCountFlagBits     msaaSamples = vk::SampleCountFlagBits::e1);
 
     // Non-copyable
     Swapchain(const Swapchain&)            = delete;
@@ -30,8 +31,10 @@ public:
     const vk::raii::RenderPass&                getRenderPass() const { return m_renderPass; }
     const std::vector<vk::raii::ImageView>&    getImageViews() const { return m_imageViews; }
     const vk::raii::ImageView&                 getDepthImageView() const { return m_depthImageView; }
+    const vk::raii::ImageView&                 getColorImageView() const { return m_colorImageView; }
     vk::Format                                 getFormat()     const { return m_format; }
     vk::Extent2D                               getExtent()     const { return m_extent; }
+    vk::SampleCountFlagBits                    getMsaaSamples() const { return m_msaaSamples; }
     uint32_t                                   imageCount()    const { return static_cast<uint32_t>(m_imageViews.size()); }
 
     // Returns image index, or nullopt if swapchain is out of date (resize needed)
@@ -48,6 +51,9 @@ public:
 private:
     vk::raii::SwapchainKHR           m_swapchain = nullptr;
     vk::raii::RenderPass             m_renderPass = nullptr;
+    vk::raii::Image                  m_colorImage = nullptr;
+    vk::raii::DeviceMemory           m_colorMemory = nullptr;
+    vk::raii::ImageView              m_colorImageView = nullptr;
     vk::raii::Image                  m_depthImage = nullptr;
     vk::raii::DeviceMemory           m_depthMemory = nullptr;
     vk::raii::ImageView              m_depthImageView = nullptr;
@@ -55,6 +61,7 @@ private:
     std::vector<vk::raii::ImageView> m_imageViews;
     vk::Format                       m_format;
     vk::Extent2D                     m_extent;
+    vk::SampleCountFlagBits          m_msaaSamples;
 
     static vk::SurfaceFormatKHR chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& available);
     static vk::PresentModeKHR   choosePresentMode  (const std::vector<vk::PresentModeKHR>&   available);

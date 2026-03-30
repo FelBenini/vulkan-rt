@@ -37,7 +37,7 @@ public:
 private:
     void update();
 
-    glm::vec3 m_position = glm::vec3(0.0f, 0.0f, -3.0f);
+    glm::vec3 m_position = glm::vec3(0.0f, 0.0f, -5.0f);
     glm::vec3 m_worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::quat m_orientation = glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     

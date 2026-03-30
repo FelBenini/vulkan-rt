@@ -4,6 +4,7 @@
 #include "core/VertexBuffer.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -14,7 +15,7 @@ Renderer::Renderer(Window&                   window,
     : m_window(window)
     , m_surface(std::move(surface))
     , m_device(instance, m_surface)
-    , m_swapchain(m_device, m_surface, m_window)
+    , m_swapchain(m_device, m_surface, m_window, m_device.getMsaaSamples())
     , m_commandPool(m_device)
     , m_sync(m_device, 2)
     , m_pipeline(m_device, m_swapchain)
@@ -151,7 +152,7 @@ void Renderer::recreateSwapchain() {
     }
 
     // Replace the swapchain in-place
-    m_swapchain = Swapchain(m_device, m_surface, m_window);
+    m_swapchain = Swapchain(m_device, m_surface, m_window, m_device.getMsaaSamples());
 
     // Recreate pipeline with new swapchain extent
     m_pipeline = Pipeline(m_device, m_swapchain);
@@ -166,19 +167,34 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer& buffer, uint32_t imageInde
     const vk::CommandBufferBeginInfo beginInfo;
     buffer.begin(beginInfo);
 
-    // Black clear
-    vk::ClearValue clearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
+    std::array clearValues = {
+        vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f})),
+        vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0))
+    };
 
     const vk::RenderPassBeginInfo renderPassInfo(
         *m_pipeline.getRenderPass(),
         *m_framebuffer.get(imageIndex),
         vk::Rect2D({0, 0}, m_swapchain.getExtent()),
-        1,
-        &clearValue
+        static_cast<uint32_t>(clearValues.size()),
+        clearValues.data()
     );
 
     buffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
     buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_pipeline.getPipeline());
+
+    // Time-based rotation
+    static auto lastTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    static float totalTime = 0.0f;
+    float dt = std::chrono::duration<float>(currentTime - lastTime).count();
+    lastTime = currentTime;
+    totalTime += dt;
+
+    // Model matrix with translation and rotation
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f));
+    model = glm::rotate(model, totalTime, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::rotate(model, totalTime * 0.5f, glm::vec3(1.0f, 0.0f, 0.0f));
 
     // Push camera matrices
     glm::mat4 view = camera.getViewMatrix();
@@ -189,9 +205,10 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer& buffer, uint32_t imageInde
     proj[1][1] = -proj[1][1];
 
     struct PushConstants {
+        glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
-    } pc = {view, proj};
+    } pc = {model, view, proj};
 
     buffer.pushConstants(
         *m_pipeline.getLayout(),

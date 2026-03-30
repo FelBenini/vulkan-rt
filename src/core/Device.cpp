@@ -43,6 +43,21 @@ void Device::pickPhysicalDevice(const vk::raii::Instance& instance,
     m_capabilities.rayTracing = supportsRayTracing(m_physicalDevice);
     m_capabilities.dynamicRendering = true;
 
+    // Query supported MSAA sample counts
+    auto props = m_physicalDevice.getProperties();
+    vk::SampleCountFlags sampleCounts = props.limits.framebufferColorSampleCounts &
+                                         props.limits.framebufferDepthSampleCounts;
+    if (sampleCounts & vk::SampleCountFlagBits::e8) {
+        m_capabilities.msaaSamples = vk::SampleCountFlagBits::e8;
+    } else if (sampleCounts & vk::SampleCountFlagBits::e4) {
+        m_capabilities.msaaSamples = vk::SampleCountFlagBits::e4;
+    } else if (sampleCounts & vk::SampleCountFlagBits::e2) {
+        m_capabilities.msaaSamples = vk::SampleCountFlagBits::e2;
+    } else {
+        m_capabilities.msaaSamples = vk::SampleCountFlagBits::e1;
+    }
+    std::cout << "[Device] MSAA: " << vk::to_string(m_capabilities.msaaSamples) << "\n";
+
     // Query RT properties
     if (m_capabilities.rayTracing) {
         auto propsChain = m_physicalDevice.getProperties2<

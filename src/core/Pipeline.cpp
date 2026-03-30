@@ -6,10 +6,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
+Pipeline::Pipeline(const Device& device, const Swapchain& swapchain)
+    : m_swapchainRenderPass(&swapchain.getRenderPass())
+{
     const auto& dev = device.getLogical();
-
-    m_renderPass = createRenderPass(dev, swapchain.getFormat());
 
     const auto vertCode = readShader("shaders/triangle.vert.spv");
     const auto fragCode = readShader("shaders/triangle.frag.spv");
@@ -85,7 +85,7 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
 
     vk::PipelineMultisampleStateCreateInfo multisampling(
         {},
-        vk::SampleCountFlagBits::e1,
+        swapchain.getMsaaSamples(),
         false,
         1.0f,
         nullptr,
@@ -129,7 +129,7 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
     vk::PushConstantRange pushConstantRange(
         vk::ShaderStageFlagBits::eVertex,
         0,
-        sizeof(glm::mat4) * 2 // view + proj matrices
+        sizeof(glm::mat4) * 3 // model + view + proj matrices
     );
 
     vk::PipelineLayoutCreateInfo layoutInfo(
@@ -153,7 +153,7 @@ Pipeline::Pipeline(const Device& device, const Swapchain& swapchain) {
         &colorBlending,
         nullptr,
         *m_pipelineLayout,
-        *m_renderPass,
+        *m_swapchainRenderPass,
         0
     );
 
@@ -180,47 +180,4 @@ vk::raii::ShaderModule Pipeline::createShaderModule(const vk::raii::Device& devi
         reinterpret_cast<const uint32_t*>(code.data())
     );
     return vk::raii::ShaderModule(device, createInfo);
-}
-
-vk::raii::RenderPass Pipeline::createRenderPass(const vk::raii::Device& device, vk::Format swapchainFormat) {
-    vk::AttachmentDescription colorAttachment(
-        {},
-        swapchainFormat,
-        vk::SampleCountFlagBits::e1,
-        vk::AttachmentLoadOp::eClear,
-        vk::AttachmentStoreOp::eStore,
-        vk::AttachmentLoadOp::eDontCare,
-        vk::AttachmentStoreOp::eDontCare,
-        vk::ImageLayout::eUndefined,
-        vk::ImageLayout::ePresentSrcKHR
-    );
-
-    vk::AttachmentReference colorAttachmentRef(0, vk::ImageLayout::eColorAttachmentOptimal);
-
-    vk::SubpassDescription subpass(
-        {},
-        vk::PipelineBindPoint::eGraphics,
-        0, nullptr,
-        1, &colorAttachmentRef,
-        0, nullptr
-    );
-
-    vk::SubpassDependency dependency(
-        VK_SUBPASS_EXTERNAL,
-        0,
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        {},
-        vk::AccessFlagBits::eColorAttachmentWrite,
-        {}
-    );
-
-    vk::RenderPassCreateInfo renderPassInfo(
-        {},
-        1, &colorAttachment,
-        1, &subpass,
-        1, &dependency
-    );
-
-    return vk::raii::RenderPass(device, renderPassInfo);
 }

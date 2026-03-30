@@ -19,6 +19,7 @@ struct DeviceCapabilities {
     bool rayTracing       = false;
     bool meshShaders      = false;
     bool dynamicRendering = false;
+    vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
 };
 
 class Device {
@@ -35,6 +36,7 @@ public:
 
     const QueueFamilyIndices&       getQueueIndices()   const { return m_queueIndices; }
     const DeviceCapabilities&       getCapabilities()   const { return m_capabilities; }
+    vk::SampleCountFlagBits          getMsaaSamples()   const { return m_capabilities.msaaSamples; }
 
     // RT properties accessors
     const vk::PhysicalDeviceRayTracingPipelinePropertiesKHR& getRTProps() const { return m_rtPipelineProps; }
