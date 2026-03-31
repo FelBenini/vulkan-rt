@@ -5,7 +5,7 @@
 
 class CommandPool {
 public:
-    CommandPool(const Device& device);
+    CommandPool(const Device& device, uint32_t bufferCount);
 
     CommandPool(const CommandPool&)            = delete;
     CommandPool& operator=(const CommandPool&) = delete;

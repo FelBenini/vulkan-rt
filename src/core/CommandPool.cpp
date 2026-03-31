@@ -1,14 +1,14 @@
 #include "core/CommandPool.hpp"
 #include "core/Device.hpp"
 
-CommandPool::CommandPool(const Device& device)
+CommandPool::CommandPool(const Device& device, uint32_t bufferCount)
     : m_pool(device.getLogical(), createInfo(device.getQueueIndices().graphics.value()))
     , m_buffers()
 {
     const vk::CommandBufferAllocateInfo allocInfo(
         *m_pool,
         vk::CommandBufferLevel::ePrimary,
-        2 // Double-buffered: one for each frame in flight
+        bufferCount
     );
     m_buffers = device.getLogical().allocateCommandBuffers(allocInfo);
 }

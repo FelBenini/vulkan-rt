@@ -16,8 +16,8 @@ Renderer::Renderer(Window&                   window,
     , m_surface(std::move(surface))
     , m_device(instance, m_surface)
     , m_swapchain(m_device, m_surface, m_window, m_device.getMsaaSamples())
-    , m_commandPool(m_device)
-    , m_sync(m_device, 2)
+    , m_commandPool(m_device, m_swapchain.imageCount())
+    , m_sync(m_device, m_swapchain.imageCount())
     , m_pipeline(m_device, m_swapchain)
     , m_framebuffer(m_device, m_swapchain, m_pipeline)
 {
@@ -153,6 +153,11 @@ void Renderer::recreateSwapchain() {
 
     // Replace the swapchain in-place
     m_swapchain = Swapchain(m_device, m_surface, m_window, m_device.getMsaaSamples());
+
+    // Recreate command pool and sync with new image count
+    m_commandPool = CommandPool(m_device, m_swapchain.imageCount());
+    m_sync = Sync(m_device, m_swapchain.imageCount());
+    m_currentFrame = 0;
 
     // Recreate pipeline with new swapchain extent
     m_pipeline = Pipeline(m_device, m_swapchain);
